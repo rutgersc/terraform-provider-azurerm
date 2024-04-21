@@ -63,6 +63,13 @@ The following arguments are supported:
 
 * `status` - (Optional) Specifies the status of the Event Hub resource. Possible values are `Active`, `Disabled` and `SendDisabled`. Defaults to `Active`.
 
+* `cleanup_policy` - (Optional) Specifies the cleanup policy of the Event Hub resource. Possible values are `Delete`, and `Compact`. Defaults to `Delete`.
+
+* `cleanup_policy_delete_retention_time_in_hours` - (Optional) Specifies the number of hours to retain the events for this Event Hub. This value is only used when `cleanup_policy` is set to `Delete`.
+
+* `cleanup_policy_compact_tombstone_retention_time_in_hours` - (Optional) Specifies the number of hours to retain the tombstone markers of a compacted Event Hub. This value is only used when `cleanup_policy` is set to `Compact`.
+
+
 ---
 
 A `capture_description` block supports the following:
