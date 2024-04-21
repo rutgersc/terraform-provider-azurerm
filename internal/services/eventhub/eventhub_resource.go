@@ -66,6 +66,27 @@ func resourceEventHub() *pluginsdk.Resource {
 				ValidateFunc: validate.ValidateEventHubPartitionCount,
 			},
 
+			"cleanup_policy": {
+				Type:     pluginsdk.TypeString,
+				ForceNew: true,
+				Optional: true,
+				Default:  string(eventhubs.CleanupPolicyRetentionDescriptionDelete),
+				ValidateFunc: validation.StringInSlice([]string{
+					string(eventhubs.CleanupPolicyRetentionDescriptionCompact),
+					string(eventhubs.CleanupPolicyRetentionDescriptionDelete),
+				}, false),
+			},
+
+			"cleanup_policy_delete_retention_time_in_hours": {
+				Type:     pluginsdk.TypeInt,
+				Optional: true,
+			},
+
+			"cleanup_policy_compact_tombstone_retention_time_in_hours": {
+				Type:     pluginsdk.TypeInt,
+				Optional: true,
+			},
+
 			"message_retention": {
 				Type:         pluginsdk.TypeInt,
 				Required:     true,
@@ -189,11 +210,17 @@ func resourceEventHubCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 
 	eventhubStatus := eventhubs.EntityStatus(d.Get("status").(string))
+	cleanupPolicy := eventhubs.CleanupPolicyRetentionDescription(d.Get("cleanup_policy").(string))
 	parameters := eventhubs.Eventhub{
 		Properties: &eventhubs.EventhubProperties{
 			PartitionCount:         utils.Int64(int64(d.Get("partition_count").(int))),
 			MessageRetentionInDays: utils.Int64(int64(d.Get("message_retention").(int))),
-			Status:                 &eventhubStatus,
+			RetentionDescription: &eventhubs.RetentionDescription{
+				CleanupPolicy:                 &cleanupPolicy,
+				RetentionTimeInHours:          utils.Int64(int64(d.Get("cleanup_policy_retention_time_in_hours").(int))),
+				TombstoneRetentionTimeInHours: utils.Int64(int64(d.Get("cleanup_policy_tombstone_retention_time_in_hours").(int))),
+			},
+			Status: &eventhubStatus,
 		},
 	}
 
@@ -241,12 +268,18 @@ func resourceEventHubUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 
 	eventhubStatus := eventhubs.EntityStatus(d.Get("status").(string))
+	cleanupPolicy := eventhubs.CleanupPolicyRetentionDescription(d.Get("cleanup_policy").(string))
 	parameters := eventhubs.Eventhub{
 		Properties: &eventhubs.EventhubProperties{
 			PartitionCount:         utils.Int64(int64(d.Get("partition_count").(int))),
 			MessageRetentionInDays: utils.Int64(int64(d.Get("message_retention").(int))),
 			Status:                 &eventhubStatus,
 			CaptureDescription:     expandEventHubCaptureDescription(d),
+			RetentionDescription: &eventhubs.RetentionDescription{
+				CleanupPolicy:                 &cleanupPolicy,
+				RetentionTimeInHours:          utils.Int64(int64(d.Get("cleanup_policy_retention_time_in_hours").(int))),
+				TombstoneRetentionTimeInHours: utils.Int64(int64(d.Get("cleanup_policy_tombstone_retention_time_in_hours").(int))),
+			},
 		},
 	}
 
