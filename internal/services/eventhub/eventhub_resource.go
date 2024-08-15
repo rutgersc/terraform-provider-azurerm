@@ -11,8 +11,8 @@ import (
 	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonids"
 	"github.com/hashicorp/go-azure-helpers/resourcemanager/commonschema"
-	"github.com/hashicorp/go-azure-sdk/resource-manager/eventhub/2024-01-01/namespaces"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/eventhub/2024-01-01/eventhubs"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/eventhub/2024-01-01/namespaces"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/eventhub/validate"
@@ -64,6 +64,27 @@ func resourceEventHub() *pluginsdk.Resource {
 				Type:         pluginsdk.TypeInt,
 				Required:     true,
 				ValidateFunc: validate.ValidateEventHubPartitionCount,
+			},
+
+			"cleanup_policy": {
+				Type:     pluginsdk.TypeString,
+				ForceNew: true,
+				Optional: true,
+				Default:  string(eventhubs.CleanupPolicyRetentionDescriptionDelete),
+				ValidateFunc: validation.StringInSlice([]string{
+					string(eventhubs.CleanupPolicyRetentionDescriptionCompact),
+					string(eventhubs.CleanupPolicyRetentionDescriptionDelete),
+				}, false),
+			},
+
+			"cleanup_policy_delete_retention_time_in_hours": {
+				Type:     pluginsdk.TypeInt,
+				Optional: true,
+			},
+
+			"cleanup_policy_compact_tombstone_retention_time_in_hours": {
+				Type:     pluginsdk.TypeInt,
+				Optional: true,
 			},
 
 			"message_retention": {
@@ -189,10 +210,12 @@ func resourceEventHubCreate(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 
 	eventhubStatus := eventhubs.EntityStatus(d.Get("status").(string))
+
 	parameters := eventhubs.Eventhub{
 		Properties: &eventhubs.EventhubProperties{
 			PartitionCount:         utils.Int64(int64(d.Get("partition_count").(int))),
 			MessageRetentionInDays: utils.Int64(int64(d.Get("message_retention").(int))),
+			RetentionDescription:   getRetentionDescription(d),
 			Status:                 &eventhubStatus,
 		},
 	}
@@ -247,6 +270,7 @@ func resourceEventHubUpdate(d *pluginsdk.ResourceData, meta interface{}) error {
 			MessageRetentionInDays: utils.Int64(int64(d.Get("message_retention").(int))),
 			Status:                 &eventhubStatus,
 			CaptureDescription:     expandEventHubCaptureDescription(d),
+			RetentionDescription:   getRetentionDescription(d),
 		},
 	}
 
@@ -323,6 +347,28 @@ func resourceEventHubDelete(d *pluginsdk.ResourceData, meta interface{}) error {
 	}
 
 	return nil
+}
+
+func getRetentionDescription(d *pluginsdk.ResourceData) *eventhubs.RetentionDescription {
+	cleanupPolicy := eventhubs.CleanupPolicyRetentionDescription(d.Get("cleanup_policy").(string))
+
+	retention := eventhubs.RetentionDescription{
+		CleanupPolicy: &cleanupPolicy,
+	}
+
+	if cleanupPolicy == eventhubs.CleanupPolicyRetentionDescriptionDelete {
+		//  Value must be between 1 and 2160
+		retention.RetentionTimeInHours = utils.Int64(int64(d.Get("cleanup_policy_delete_retention_time_in_hours").(int)))
+		retention.TombstoneRetentionTimeInHours = nil
+	}
+
+	if cleanupPolicy == eventhubs.CleanupPolicyRetentionDescriptionCompact {
+		//  Value must be between 1 and 2160
+		retention.RetentionTimeInHours = nil
+		retention.TombstoneRetentionTimeInHours = utils.Int64(int64(d.Get("cleanup_policy_compact_tombstone_retention_time_in_hours").(int)))
+	}
+
+	return &retention
 }
 
 func expandEventHubCaptureDescription(d *pluginsdk.ResourceData) *eventhubs.CaptureDescription {
